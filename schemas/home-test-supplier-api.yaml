@@ -11,6 +11,15 @@ paths:
       description: Submit test results for a completed order
       tags:
         - Result Service
+      parameters:
+        - name: X-Correlation-ID
+          in: header
+          required: true
+          description: Unique identifier for request tracking and idempotency
+          schema:
+            type: string
+            format: uuid
+            example: "550e8400-e29b-41d4-a716-446655440000"
       requestBody:
         required: true
         content:
@@ -47,6 +56,15 @@ paths:
       description: Update the status of an existing order using FHIR Task resource
       tags:
         - Order Management
+      parameters:
+        - name: X-Correlation-ID
+          in: header
+          required: true
+          description: Unique identifier for request tracking and idempotency
+          schema:
+            type: string
+            format: uuid
+            example: "550e8400-e29b-41d4-a716-446655440000"
       requestBody:
         required: true
         content:
@@ -118,52 +136,18 @@ components:
                     example: "HIV antibody test - self-sampling"
         subject:
           type: object
-          description: Who and/or what the observation is about
+          description: Patient reference for matching with service request - PII removed for results
+          required:
+            - reference
           properties:
             reference:
               type: string
+              description: Reference to patient for matching purposes only
               example: "Patient/123e4567-e89b-12d3-a456-426614174000"
-            firstName:
-              type: string
-              description: Patient's first name
-              example: "John"
-            lastName:
-              type: string
-              description: Patient's last name
-              example: "Smith"
-            dateOfBirth:
-              type: string
-              format: date
-              description: Patient's date of birth
-              example: "1985-03-15"
-            address:
-              type: object
-              description: Patient's address
-              properties:
-                line1:
-                  type: string
-                  description: First line of address
-                  example: "123 Main Street"
-                line2:
-                  type: string
-                  description: Second line of address (optional)
-                  example: "Apartment 2B"
-                city:
-                  type: string
-                  description: City or town
-                  example: "London"
-                postcode:
-                  type: string
-                  description: Postal code
-                  example: "SW1A 1AA"
-                country:
-                  type: string
-                  description: Country
-                  example: "United Kingdom"
         effectiveDateTime:
           type: string
           format: date-time
-          description: Clinically relevant time/time-period for observation
+          description: When the observation was made
           example: "2025-11-04T15:45:00Z"
         issued:
           type: string
@@ -181,7 +165,7 @@ components:
                 example: "Organization/SUP001"
         valueQuantity:
           type: object
-          description: Actual result value (for numeric results)
+          description: Actual result (for numeric results)
           properties:
             value:
               type: number
@@ -197,7 +181,7 @@ components:
               example: "1"
         valueCodeableConcept:
           type: object
-          description: Actual result value (for coded results)
+          description: Actual result (for coded results)
           properties:
             coding:
               type: array
@@ -213,57 +197,6 @@ components:
                   display:
                     type: string
                     example: "Not detected"
-        valueString:
-          type: string
-          description: Actual result value (for text results)
-          example: "Normal range"
-        interpretation:
-          type: array
-          description: High, low, normal, etc.
-          items:
-            type: object
-            properties:
-              coding:
-                type: array
-                items:
-                  type: object
-                  properties:
-                    system:
-                      type: string
-                      example: "http://terminology.hl7.org/CodeSystem/v3-ObservationInterpretation"
-                    code:
-                      type: string
-                      example: "N"
-                    display:
-                      type: string
-                      example: "Normal"
-        referenceRange:
-          type: array
-          description: Provides guide for interpretation
-          items:
-            type: object
-            properties:
-              low:
-                type: object
-                properties:
-                  value:
-                    type: number
-                    example: 3.5
-                  unit:
-                    type: string
-                    example: "mmol/L"
-              high:
-                type: object
-                properties:
-                  value:
-                    type: number
-                    example: 7.0
-                  unit:
-                    type: string
-                    example: "mmol/L"
-              text:
-                type: string
-                example: "Reference range for HIV antibody index"
 
     FHIRTask:
       type: object
@@ -271,7 +204,6 @@ components:
       required:
         - resourceType
         - status
-        - intent
         - basedOn
       properties:
         resourceType:
@@ -305,9 +237,9 @@ components:
                 example: "ServiceRequest/550e8400-e29b-41d4-a716-446655440000"
         status:
           type: string
-          description: Current status of the task
-          enum: [draft, requested, received, accepted, rejected, ready, cancelled, in-progress, on-hold, failed, completed, entered-in-error]
-          example: "in-progress"
+          description: Current status of the task - Alpha-specific business statuses
+          enum: [order-received, dispatched, received-at-lab, complete]
+          example: "dispatched"
         statusReason:
           type: object
           description: Reason for current status
@@ -315,34 +247,6 @@ components:
             text:
               type: string
               example: "Sample collected and being processed"
-        intent:
-          type: string
-          description: Intent of the task
-          enum: [unknown, proposal, plan, order, original-order, reflex-order, filler-order, instance-order, option]
-          example: "order"
-        priority:
-          type: string
-          description: Priority of the task
-          enum: [routine, urgent, asap, stat]
-          example: "routine"
-        code:
-          type: object
-          description: Task Type
-          properties:
-            coding:
-              type: array
-              items:
-                type: object
-                properties:
-                  system:
-                    type: string
-                    example: "http://hl7.org/fhir/CodeSystem/task-code"
-                  code:
-                    type: string
-                    example: "fulfill"
-                  display:
-                    type: string
-                    example: "Fulfill the focal request"
         for:
           type: object
           description: Beneficiary of the Task
@@ -386,44 +290,104 @@ components:
     BadRequest:
       description: Bad request - invalid parameters
       content:
-        application/json:
+        application/problem+json:
           schema:
             type: object
+            required:
+              - type
+              - title
+              - status
             properties:
-              error:
+              type:
                 type: string
-                example: "Invalid postcode format"
-              error_code:
+                format: uri
+                description: Problem type URI
+                example: "https://hometest.nhs.uk/problems/validation-error"
+              title:
                 type: string
-                example: "INVALID_POSTCODE"
+                description: Short, human-readable summary
+                example: "Validation Error"
+              status:
+                type: integer
+                description: HTTP status code
+                example: 400
+              detail:
+                type: string
+                description: Human-readable explanation
+                example: "The request contains invalid data that cannot be processed"
+              instance:
+                type: string
+                format: uri
+                description: URI identifying the specific problem occurrence
+                example: "/result/errors/001"
 
     Unauthorized:
       description: Unauthorized - invalid or missing authentication
       content:
-        application/json:
+        application/problem+json:
           schema:
             type: object
+            required:
+              - type
+              - title
+              - status
             properties:
-              error:
+              type:
                 type: string
-                example: "Invalid authentication credentials"
-              error_code:
+                format: uri
+                description: Problem type URI
+                example: "https://hometest.nhs.uk/problems/authentication-required"
+              title:
                 type: string
-                example: "UNAUTHORIZED"
+                description: Short, human-readable summary
+                example: "Authentication Required"
+              status:
+                type: integer
+                description: HTTP status code
+                example: 401
+              detail:
+                type: string
+                description: Human-readable explanation
+                example: "Valid authentication credentials are required to access this resource"
+              instance:
+                type: string
+                format: uri
+                description: URI identifying the specific problem occurrence
+                example: "/result/errors/002"
 
     NotFound:
       description: Resource not found
       content:
-        application/json:
+        application/problem+json:
           schema:
             type: object
+            required:
+              - type
+              - title
+              - status
             properties:
-              error:
+              type:
                 type: string
-                example: "Order not found"
-              error_code:
+                format: uri
+                description: Problem type URI
+                example: "https://hometest.nhs.uk/problems/resource-not-found"
+              title:
                 type: string
-                example: "ORDER_NOT_FOUND"
+                description: Short, human-readable summary
+                example: "Resource Not Found"
+              status:
+                type: integer
+                description: HTTP status code
+                example: 404
+              detail:
+                type: string
+                description: Human-readable explanation
+                example: "The requested order could not be found"
+              instance:
+                type: string
+                format: uri
+                description: URI identifying the specific problem occurrence
+                example: "/test-order/status/errors/001"
 
   securitySchemes:
     BearerAuth:
