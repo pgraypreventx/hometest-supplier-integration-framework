@@ -98,6 +98,15 @@ paths:
       description: Receive a new test order from the home test platform
       tags:
         - Order Management
+      parameters:
+        - name: X-Correlation-ID
+          in: header
+          required: true
+          description: Unique identifier for request tracking and idempotency
+          schema:
+            type: string
+            format: uuid
+            example: "550e8400-e29b-41d4-a716-446655440000"
       requestBody:
         required: true
         content:
@@ -205,6 +214,14 @@ paths:
       tags:
         - Results Management
       parameters:
+        - name: X-Correlation-ID
+          in: header
+          required: true
+          description: Unique identifier for request tracking and idempotency
+          schema:
+            type: string
+            format: uuid
+            example: "550e8400-e29b-41d4-a716-446655440000"
         - name: order_uid
           in: query
           required: true
@@ -230,16 +247,36 @@ paths:
         '404':
           description: No results found for the specified order
           content:
-            application/json:
+            application/problem+json:
               schema:
                 type: object
+                required:
+                  - type
+                  - title
+                  - status
                 properties:
-                  error:
+                  type:
                     type: string
-                    example: "No results found for order"
-                  error_code:
+                    format: uri
+                    description: Problem type URI
+                    example: "https://hometest.nhs.uk/problems/results-not-found"
+                  title:
                     type: string
-                    example: "RESULTS_NOT_FOUND"
+                    description: Short, human-readable summary
+                    example: "Results Not Found"
+                  status:
+                    type: integer
+                    description: HTTP status code
+                    example: 404
+                  detail:
+                    type: string
+                    description: Human-readable explanation
+                    example: "No test results were found for the specified order"
+                  instance:
+                    type: string
+                    format: uri
+                    description: URI identifying the specific problem occurrence
+                    example: "/results/errors/001"
 
 components:
   schemas:
@@ -262,11 +299,6 @@ components:
           type: string
           description: Logical id of this artifact
           example: "550e8400-e29b-41d4-a716-446655440000"
-        status:
-          type: string
-          description: Status of the service request
-          enum: [draft, active, on-hold, revoked, completed, entered-in-error, unknown]
-          example: "active"
         intent:
           type: string
           description: Intent of the service request
@@ -411,48 +443,14 @@ components:
                     example: "HIV antibody test - self-sampling"
         subject:
           type: object
-          description: Who the observation is about
+          description: Patient reference for matching with service request - PII removed for results
+          required:
+            - reference
           properties:
             reference:
               type: string
+              description: Reference to patient for matching purposes only
               example: "Patient/123e4567-e89b-12d3-a456-426614174000"
-            firstName:
-              type: string
-              description: Patient's first name
-              example: "John"
-            lastName:
-              type: string
-              description: Patient's last name
-              example: "Smith"
-            dateOfBirth:
-              type: string
-              format: date
-              description: Patient's date of birth
-              example: "1985-03-15"
-            address:
-              type: object
-              description: Patient's address
-              properties:
-                line1:
-                  type: string
-                  description: First line of address
-                  example: "123 Main Street"
-                line2:
-                  type: string
-                  description: Second line of address (optional)
-                  example: "Apartment 2B"
-                city:
-                  type: string
-                  description: City or town
-                  example: "London"
-                postcode:
-                  type: string
-                  description: Postal code
-                  example: "SW1A 1AA"
-                country:
-                  type: string
-                  description: Country
-                  example: "United Kingdom"
         effectiveDateTime:
           type: string
           format: date-time
@@ -583,32 +581,73 @@ components:
     BadRequest:
       description: Bad request - invalid parameters
       content:
-        application/json:
+        application/problem+json:
           schema:
             type: object
+            required:
+              - type
+              - title
+              - status
             properties:
-              error:
+              type:
                 type: string
-                example: "Invalid test code format"
-              error_code:
+                format: uri
+                description: Problem type URI
+                example: "https://hometest.nhs.uk/problems/validation-error"
+              title:
                 type: string
-                example: "INVALID_TEST_CODE"
+                description: Short, human-readable summary
+                example: "Validation Error"
+              status:
+                type: integer
+                description: HTTP status code
+                example: 400
+              detail:
+                type: string
+                description: Human-readable explanation
+                example: "The request contains invalid data that cannot be processed"
+              instance:
+                type: string
+                format: uri
+                description: URI identifying the specific problem occurrence
+                example: "/order/errors/001"
 
     UnprocessableEntity:
       description: Unprocessable entity - validation errors
       content:
-        application/json:
+        application/problem+json:
           schema:
             type: object
+            required:
+              - type
+              - title
+              - status
             properties:
-              error:
+              type:
                 type: string
-                example: "FHIR validation failed"
-              error_code:
+                format: uri
+                description: Problem type URI
+                example: "https://hometest.nhs.uk/problems/fhir-validation-error"
+              title:
                 type: string
-                example: "FHIR_VALIDATION_ERROR"
-              details:
+                description: Short, human-readable summary
+                example: "FHIR Validation Error"
+              status:
+                type: integer
+                description: HTTP status code
+                example: 422
+              detail:
+                type: string
+                description: Human-readable explanation
+                example: "The FHIR resource contains validation errors and cannot be processed"
+              instance:
+                type: string
+                format: uri
+                description: URI identifying the specific problem occurrence
+                example: "/order/errors/002"
+              errors:
                 type: array
+                description: Detailed validation errors
                 items:
                   type: object
                   properties:
