@@ -1,0 +1,43 @@
+
+extends: []
+rules:
+  operation-operationId-required:
+    description: "Each operation should have an operationId"
+    message: "operationId is required"
+    given: "$..paths[*][*]"
+    then:
+      field: operationId
+      function: truthy
+
+  use-fhir-content-type:
+    description: "FHIR payloads must use application/fhir+json"
+    given: "$..requestBody.content"
+    then:
+      function: schema
+      functionOptions:
+        schema:
+          type: object
+          required: [application/fhir+json]
+
+  problem-json-required-fields:
+    description: "Problem+JSON must include type, title, status"
+    given: "$..responses[*].content['application/problem+json'].schema"
+    then:
+      function: schema
+      functionOptions:
+        schema:
+          type: object
+          required: [type, title, status]
+
+  no-get-requestBody:
+    description: "GET operations must not define a requestBody"
+    given: "$..paths[*].get"
+    then:
+      field: requestBody
+      function: falsy
+
+  security-schemes-present:
+    description: "API must declare security schemes"
+    given: "$.components.securitySchemes"
+    then:
+      function: truthy

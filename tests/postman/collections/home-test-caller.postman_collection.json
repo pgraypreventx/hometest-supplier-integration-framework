@@ -1,0 +1,160 @@
+{
+  "info": {
+    "name": "Home Test Caller (Supplier behaviour)",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Status Updates",
+      "item": [
+        {
+          "name": "Update to dispatched (idempotent)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "exec": [
+                  "pm.variables.set('corr', crypto.randomUUID());",
+                  "pm.request.headers.upsert({ key: 'X-Correlation-ID', value: pm.variables.get('corr') });"
+                ],
+                "type": "text/javascript"
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('200 OK', function () { pm.response.to.have.status(200); });",
+                  "pm.collectionVariables.set('firstETag', pm.response.headers.get('ETag') || '');"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/fhir+json"
+              }
+            ],
+            "url": {
+              "raw": "{{home_test_base_url}}/test-order/status",
+              "host": [
+                "{{home_test_base_url}}"
+              ],
+              "path": [
+                "test-order",
+                "status"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\\n  \\\"resourceType\\\": \\\"Task\\\",\\n  \\\"identifier\\\": [\\n    {\\n      \\\"system\\\": \\\"https://fhir.hometest.nhs.uk/Id/order-uid\\\",\\n      \\\"value\\\": \\\"550e8400-e29b-41d4-a716-446655440000\\\",\\n      \\\"use\\\": \\\"official\\\"\\n    }\\n  ],\\n  \\\"basedOn\\\": [\\n    {\\n      \\\"reference\\\": \\\"ServiceRequest/550e8400-e29b-41d4-a716-446655440000\\\"\\n    }\\n  ],\\n  \\\"status\\\": \\\"in-progress\\\",\\n  \\\"intent\\\": \\\"order\\\",\\n  \\\"businessStatus\\\": {\\n    \\\"text\\\": \\\"dispatched\\\"\\n  },\\n  \\\"for\\\": {\\n    \\\"reference\\\": \\\"Patient/123e4567-e89b-12d3-a456-426614174000\\\"\\n  },\\n  \\\"authoredOn\\\": \\\"2025-11-04T10:30:00Z\\\",\\n  \\\"lastModified\\\": \\\"2025-11-04T10:35:00Z\\\",\\n  \\\"requester\\\": {\\n    \\\"reference\\\": \\\"Organization/ORG001\\\"\\n  },\\n  \\\"owner\\\": {\\n    \\\"reference\\\": \\\"Organization/SUP001\\\"\\n  }\\n}"
+            }
+          }
+        },
+        {
+          "name": "Update to dispatched (repeat same correlation)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "exec": [
+                  "pm.request.headers.upsert({ key: 'X-Correlation-ID', value: pm.collectionVariables.get('corr') || pm.variables.get('corr') });"
+                ],
+                "type": "text/javascript"
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Idempotent response', function () { pm.expect([200, 409]).to.include(pm.response.code); });",
+                  "let prev = pm.collectionVariables.get('firstETag');",
+                  "let curr = pm.response.headers.get('ETag') || '';",
+                  "if (prev && curr) pm.expect(curr).to.eql(prev);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/fhir+json"
+              }
+            ],
+            "url": {
+              "raw": "{{home_test_base_url}}/test-order/status",
+              "host": [
+                "{{home_test_base_url}}"
+              ],
+              "path": [
+                "test-order",
+                "status"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\\n  \\\"resourceType\\\": \\\"Task\\\",\\n  \\\"identifier\\\": [\\n    {\\n      \\\"system\\\": \\\"https://fhir.hometest.nhs.uk/Id/order-uid\\\",\\n      \\\"value\\\": \\\"550e8400-e29b-41d4-a716-446655440000\\\",\\n      \\\"use\\\": \\\"official\\\"\\n    }\\n  ],\\n  \\\"basedOn\\\": [\\n    {\\n      \\\"reference\\\": \\\"ServiceRequest/550e8400-e29b-41d4-a716-446655440000\\\"\\n    }\\n  ],\\n  \\\"status\\\": \\\"in-progress\\\",\\n  \\\"intent\\\": \\\"order\\\",\\n  \\\"businessStatus\\\": {\\n    \\\"text\\\": \\\"dispatched\\\"\\n  },\\n  \\\"for\\\": {\\n    \\\"reference\\\": \\\"Patient/123e4567-e89b-12d3-a456-426614174000\\\"\\n  },\\n  \\\"authoredOn\\\": \\\"2025-11-04T10:30:00Z\\\",\\n  \\\"lastModified\\\": \\\"2025-11-04T10:35:00Z\\\",\\n  \\\"requester\\\": {\\n    \\\"reference\\\": \\\"Organization/ORG001\\\"\\n  },\\n  \\\"owner\\\": {\\n    \\\"reference\\\": \\\"Organization/SUP001\\\"\\n  }\\n}"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Post Result",
+      "item": [
+        {
+          "name": "Post Observation",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "exec": [
+                  "pm.request.headers.upsert({ key: 'X-Correlation-ID', value: crypto.randomUUID() });"
+                ],
+                "type": "text/javascript"
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('201 Created', function () { pm.response.to.have.status(201); });"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/fhir+json"
+              }
+            ],
+            "url": {
+              "raw": "{{home_test_base_url}}/result",
+              "host": [
+                "{{home_test_base_url}}"
+              ],
+              "path": [
+                "result"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\\n  \\\"resourceType\\\": \\\"Observation\\\",\\n  \\\"id\\\": \\\"550e8400-e29b-41d4-a716-446655440001\\\",\\n  \\\"basedOn\\\": [\\n    {\\n      \\\"reference\\\": \\\"ServiceRequest/550e8400-e29b-41d4-a716-446655440000\\\"\\n    }\\n  ],\\n  \\\"status\\\": \\\"final\\\",\\n  \\\"code\\\": {\\n    \\\"coding\\\": [\\n      {\\n        \\\"system\\\": \\\"http://snomed.info/sct\\\",\\n        \\\"code\\\": \\\"31676001\\\",\\n        \\\"display\\\": \\\"HIV antigen test\\\"\\n      }\\n    ],\\n    \\\"text\\\": \\\"HIV antigen test\\\"\\n  },\\n  \\\"subject\\\": {\\n    \\\"reference\\\": \\\"Patient/123e4567-e89b-12d3-a456-426614174000\\\"\\n  },\\n  \\\"effectiveDateTime\\\": \\\"2025-11-04T15:45:00Z\\\",\\n  \\\"issued\\\": \\\"2025-11-04T16:00:00Z\\\",\\n  \\\"valueCodeableConcept\\\": {\\n    \\\"coding\\\": [\\n      {\\n        \\\"system\\\": \\\"http://snomed.info/sct\\\",\\n        \\\"code\\\": \\\"260415000\\\",\\n        \\\"display\\\": \\\"Not detected\\\"\\n      }\\n    ]\\n  }\\n}"
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

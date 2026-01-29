@@ -2,7 +2,7 @@ openapi: 3.0.3
 info:
   title: Home Test Supplier API
   description: API for supplier domain operations - managing test results and order status updates
-  version: 1.0.0
+  version: 1.0.4
 
 paths:
   /result:
@@ -30,21 +30,9 @@ paths:
         '201':
           description: Results posted successfully
           content:
-            application/json:
+            application/fhir+json:
               schema:
-                type: object
-                properties:
-                  order_uid:
-                    type: string
-                    format: uuid
-                    example: "550e8400-e29b-41d4-a716-446655440000"
-                  result_status:
-                    type: string
-                    example: "RECEIVED"
-                  timestamp:
-                    type: string
-                    format: date-time
-                    example: "2025-11-04T15:45:00Z"
+                $ref: '#/components/schemas/FHIRObservation'
         '400':
           $ref: '#/components/responses/BadRequest'
         '401':
@@ -93,6 +81,8 @@ components:
         - status
         - code
         - subject
+        - basedOn
+        - valueCodeableConcept
       properties:
         resourceType:
           type: string
@@ -101,49 +91,33 @@ components:
         id:
           type: string
           description: Logical id of this artifact
-          example: "obs-550e8400-e29b-41d4-a716-446655440000"
+          example: "550e8400-e29b-41d4-a716-446655440001"
         basedOn:
           type: array
           description: Reference to the ServiceRequest this observation fulfills
           items:
-            type: object
-            properties:
-              reference:
-                type: string
-                example: "ServiceRequest/550e8400-e29b-41d4-a716-446655440000"
+            $ref: '#/components/schemas/FHIRReference'
         status:
           type: string
           description: Status of the observation result
           enum: [registered, preliminary, final, amended, corrected, cancelled, entered-in-error, unknown]
           example: "final"
         code:
-          type: object
-          description: Type of observation (SNOMED CT or LOINC)
-          properties:
-            coding:
-              type: array
-              items:
-                type: object
-                properties:
-                  system:
-                    type: string
-                    example: "http://snomed.info/sct"
-                  code:
-                    type: string
-                    example: "31676001"
-                  display:
-                    type: string
-                    example: "HIV antibody test - self-sampling"
+          allOf:
+            - $ref: '#/components/schemas/FHIRCodeableConcept'
+            - description: Type of observation (SNOMED CT or LOINC)
+              example:
+                coding:
+                  - system: "http://snomed.info/sct"
+                    code: "31676001"
+                    display: "HIV antigen test"
+                text: "HIV antigen test"
         subject:
-          type: object
-          description: Patient reference for matching with service request - PII removed for results
-          required:
-            - reference
-          properties:
-            reference:
-              type: string
-              description: Reference to patient for matching purposes only
-              example: "Patient/123e4567-e89b-12d3-a456-426614174000"
+          allOf:
+            - $ref: '#/components/schemas/FHIRReference'
+            - description: Patient reference for matching with service request - PII removed for results
+              example:
+                reference: "Patient/123e4567-e89b-12d3-a456-426614174000"
         effectiveDateTime:
           type: string
           format: date-time
@@ -158,45 +132,21 @@ components:
           type: array
           description: Who is responsible for the observation
           items:
-            type: object
-            properties:
-              reference:
-                type: string
-                example: "Organization/SUP001"
-        valueQuantity:
-          type: object
-          description: Actual result (for numeric results)
-          properties:
-            value:
-              type: number
-              example: 0.5
-            unit:
-              type: string
-              example: "index"
-            system:
-              type: string
-              example: "http://unitsofmeasure.org"
-            code:
-              type: string
-              example: "1"
+            $ref: '#/components/schemas/FHIRReference'
+        interpretation:
+          type: array
+          description: Clinical interpretation of the observation (e.g., Normal, Abnormal, Positive, Negative)
+          items:
+            $ref: '#/components/schemas/FHIRCodeableConcept'
         valueCodeableConcept:
-          type: object
-          description: Actual result (for coded results)
-          properties:
-            coding:
-              type: array
-              items:
-                type: object
-                properties:
-                  system:
-                    type: string
-                    example: "http://snomed.info/sct"
-                  code:
-                    type: string
-                    example: "260415000"
-                  display:
-                    type: string
-                    example: "Not detected"
+          allOf:
+            - $ref: '#/components/schemas/FHIRCodeableConcept'
+            - description: Actual result (for coded results)
+              example:
+                coding:
+                  - system: "http://snomed.info/sct"
+                    code: "260415000"
+                    display: "Not detected"
 
     FHIRTask:
       type: object
@@ -204,7 +154,9 @@ components:
       required:
         - resourceType
         - status
+        - intent
         - basedOn
+        - identifier
       properties:
         resourceType:
           type: string
@@ -218,42 +170,34 @@ components:
           type: array
           description: Task Instance Identifier
           items:
-            type: object
-            properties:
-              system:
-                type: string
-                example: "https://fhir.hometest.nhs.uk/Id/order-uid"
-              value:
-                type: string
-                example: "550e8400-e29b-41d4-a716-446655440000"
+            $ref: '#/components/schemas/FHIRIdentifier'
         basedOn:
           type: array
           description: Request fulfilled by this task
           items:
-            type: object
-            properties:
-              reference:
-                type: string
-                example: "ServiceRequest/550e8400-e29b-41d4-a716-446655440000"
+            $ref: '#/components/schemas/FHIRReference'
         status:
           type: string
-          description: Current status of the task - Alpha-specific business statuses
-          enum: [order-received, dispatched, received-at-lab, complete]
-          example: "dispatched"
+          description: Current status of the task - FHIR standard values (use businessStatus for domain-specific states)
+          enum: [draft, requested, received, accepted, rejected, ready, cancelled, in-progress, on-hold, failed, completed, entered-in-error]
+          example: "in-progress"
+        intent:
+          type: string
+          description: Indicates the "level" of actionability associated with the Task
+          enum: [unknown, proposal, plan, order, original-order, reflex-order, filler-order, instance-order, option]
+          example: "order"
         statusReason:
-          type: object
-          description: Reason for current status
-          properties:
-            text:
-              type: string
-              example: "Sample collected and being processed"
+          allOf:
+            - $ref: '#/components/schemas/FHIRCodeableConcept'
+            - description: Reason for current status
+              example:
+                text: "Sample collected and being processed"
         for:
-          type: object
-          description: Beneficiary of the Task
-          properties:
-            reference:
-              type: string
-              example: "Patient/123e4567-e89b-12d3-a456-426614174000"
+          allOf:
+            - $ref: '#/components/schemas/FHIRReference'
+            - description: Beneficiary of the Task
+              example:
+                reference: "Patient/123e4567-e89b-12d3-a456-426614174000"
         authoredOn:
           type: string
           format: date-time
@@ -265,129 +209,192 @@ components:
           description: Task Last Modified Date
           example: "2025-11-04T10:35:00Z"
         requester:
-          type: object
-          description: Who is asking for task to be done
-          properties:
-            reference:
-              type: string
-              example: "Organization/ORG001"
+          allOf:
+            - $ref: '#/components/schemas/FHIRReference'
+            - description: Who is asking for task to be done
+              example:
+                reference: "Organization/ORG001"
         owner:
-          type: object
-          description: Responsible individual for the task
-          properties:
-            reference:
-              type: string
-              example: "Organization/SUP001"
+          allOf:
+            - $ref: '#/components/schemas/FHIRReference'
+            - description: Responsible individual for the task
+              example:
+                reference: "Organization/SUP001"
         businessStatus:
-          type: object
-          description: E.g. "Pending", "Processing", etc.
-          properties:
-            text:
-              type: string
-              example: "Sample dispatched to laboratory"
+          allOf:
+            - $ref: '#/components/schemas/FHIRCodeableConcept'
+            - description: Domain-specific business status (e.g., "order-received", "dispatched", "received-at-lab", "complete")
+              example:
+                text: "dispatched"
+
+    FHIROperationOutcome:
+      type: object
+      description: FHIR OperationOutcome resource for reporting errors and warnings
+      required:
+        - resourceType
+        - issue
+      properties:
+        resourceType:
+          type: string
+          enum: [OperationOutcome]
+          example: "OperationOutcome"
+        id:
+          type: string
+          description: Logical id of this artifact
+          example: "operation-outcome-001"
+        issue:
+          type: array
+          description: Issues with the request or response
+          minItems: 1
+          items:
+            type: object
+            required:
+              - severity
+              - code
+            properties:
+              severity:
+                type: string
+                description: Severity of the issue
+                enum: [fatal, error, warning, information]
+                example: "error"
+              code:
+                type: string
+                description: Error or warning code
+                enum: [invalid, structure, required, value, invariant, security, login, unknown, expired, forbidden, suppressed, processing, not-supported, duplicate, multiple-matches, not-found, deleted, too-long, code-invalid, extension, too-costly, business-rule, conflict, transient, lock-error, no-store, exception, timeout, incomplete, throttled, informational]
+                example: "invalid"
+              details:
+                allOf:
+                  - $ref: '#/components/schemas/FHIRCodeableConcept'
+                  - description: Additional details about the error
+                    example:
+                      text: "Invalid parameter provided"
+              diagnostics:
+                type: string
+                description: Additional diagnostic information
+                example: "The request contains invalid data that cannot be processed"
+              location:
+                type: array
+                description: Xpath or JSONPath of element with error
+                items:
+                  type: string
+                example: ["Observation.status"]
+              expression:
+                type: array
+                description: FHIRPath of element with error
+                items:
+                  type: string
+                example: ["Observation.status"]
+
+    FHIRReference:
+      type: object
+      description: A reference from one resource to another (FHIR Reference datatype)
+      required:
+        - reference
+      properties:
+        reference:
+          type: string
+          description: Literal reference, Relative, internal or absolute URL
+          example: "Organization/SUP001"
+        type:
+          type: string
+          description: Type the reference refers to (e.g., "Organization")
+          example: "Organization"
+        display:
+          type: string
+          description: Text alternative for the resource
+          example: "Supplier Organization Name"
+    FHIRCodeableConcept:
+      type: object
+      description: A CodeableConcept represents a value that is usually supplied by providing a reference to one or more terminologies or ontologies (FHIR CodeableConcept datatype)
+      properties:
+        coding:
+          type: array
+          description: Code defined by a terminology system
+          items:
+            $ref: '#/components/schemas/FHIRCoding'
+        text:
+          type: string
+          description: Plain text representation of the concept
+          example: "HIV antigen test"
+    FHIRCoding:
+      type: object
+      description: A Coding is a representation of a defined concept using a symbol from a defined code system (FHIR Coding datatype)
+      properties:
+        system:
+          type: string
+          description: Identity of the terminology system
+          example: "http://snomed.info/sct"
+        code:
+          type: string
+          description: Symbol in syntax defined by the system
+          example: "31676001"
+        display:
+          type: string
+          description: Representation defined by the system
+          example: "HIV antigen test"
+    FHIRIdentifier:
+      type: object
+      description: An identifier intended for computation (FHIR Identifier datatype)
+      properties:
+        system:
+          type: string
+          description: The namespace for the identifier value
+          example: "https://fhir.hometest.nhs.uk/Id/order-uid"
+        value:
+          type: string
+          description: The value that is unique within the system
+          example: "550e8400-e29b-41d4-a716-446655440000"
+        use:
+          type: string
+          description: The purpose of this identifier
+          enum: [usual, official, temp, secondary, old]
+          example: "official"
 
   responses:
     BadRequest:
       description: Bad request - invalid parameters
       content:
-        application/problem+json:
+        application/fhir+json:
           schema:
-            type: object
-            required:
-              - type
-              - title
-              - status
-            properties:
-              type:
-                type: string
-                format: uri
-                description: Problem type URI
-                example: "https://hometest.nhs.uk/problems/validation-error"
-              title:
-                type: string
-                description: Short, human-readable summary
-                example: "Validation Error"
-              status:
-                type: integer
-                description: HTTP status code
-                example: 400
-              detail:
-                type: string
-                description: Human-readable explanation
-                example: "The request contains invalid data that cannot be processed"
-              instance:
-                type: string
-                format: uri
-                description: URI identifying the specific problem occurrence
-                example: "/result/errors/001"
+            $ref: '#/components/schemas/FHIROperationOutcome'
+          example:
+            resourceType: "OperationOutcome"
+            issue:
+              - severity: "error"
+                code: "invalid"
+                details:
+                  text: "Validation Error"
+                diagnostics: "The request contains invalid data that cannot be processed"
 
     Unauthorized:
       description: Unauthorized - invalid or missing authentication
       content:
-        application/problem+json:
+        application/fhir+json:
           schema:
-            type: object
-            required:
-              - type
-              - title
-              - status
-            properties:
-              type:
-                type: string
-                format: uri
-                description: Problem type URI
-                example: "https://hometest.nhs.uk/problems/authentication-required"
-              title:
-                type: string
-                description: Short, human-readable summary
-                example: "Authentication Required"
-              status:
-                type: integer
-                description: HTTP status code
-                example: 401
-              detail:
-                type: string
-                description: Human-readable explanation
-                example: "Valid authentication credentials are required to access this resource"
-              instance:
-                type: string
-                format: uri
-                description: URI identifying the specific problem occurrence
-                example: "/result/errors/002"
+            $ref: '#/components/schemas/FHIROperationOutcome'
+          example:
+            resourceType: "OperationOutcome"
+            issue:
+              - severity: "error"
+                code: "login"
+                details:
+                  text: "Authentication Required"
+                diagnostics: "Valid authentication credentials are required to access this resource"
 
     NotFound:
       description: Resource not found
       content:
-        application/problem+json:
+        application/fhir+json:
           schema:
-            type: object
-            required:
-              - type
-              - title
-              - status
-            properties:
-              type:
-                type: string
-                format: uri
-                description: Problem type URI
-                example: "https://hometest.nhs.uk/problems/resource-not-found"
-              title:
-                type: string
-                description: Short, human-readable summary
-                example: "Resource Not Found"
-              status:
-                type: integer
-                description: HTTP status code
-                example: 404
-              detail:
-                type: string
-                description: Human-readable explanation
-                example: "The requested order could not be found"
-              instance:
-                type: string
-                format: uri
-                description: URI identifying the specific problem occurrence
-                example: "/test-order/status/errors/001"
+            $ref: '#/components/schemas/FHIROperationOutcome'
+          example:
+            resourceType: "OperationOutcome"
+            issue:
+              - severity: "error"
+                code: "not-found"
+                details:
+                  text: "Resource Not Found"
+                diagnostics: "The requested order could not be found"
 
   securitySchemes:
     BearerAuth:
