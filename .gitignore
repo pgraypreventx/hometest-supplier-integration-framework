@@ -11,4 +11,4 @@
 !project.code-workspace
 
 # Please, add your custom content below!
-/schemas/home-test-consumer-api-spec.yaml
+schemas/home-test-consumer-api-spec.yaml
