@@ -1,0 +1,451 @@
+{
+  "info": {
+    "name": "Supplier Contract",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Authentication",
+      "item": [
+        {
+          "name": "Get Access Token",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Token issued', function () {pm.response.to.have.status(200);});",
+                  "var json = pm.response.json();",
+                  "pm.expect(json).to.have.property('access_token');",
+                  "pm.environment.set('access_token', json.access_token);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/x-www-form-urlencoded"
+              }
+            ],
+            "url": {
+              "raw": "{{supplier_base_url}}/oauth/token",
+              "host": [
+                "{{supplier_base_url}}"
+              ],
+              "path": [
+                "oauth",
+                "token"
+              ]
+            },
+            "body": {
+              "mode": "urlencoded",
+              "urlencoded": [
+                {
+                  "key": "grant_type",
+                  "value": "client_credentials"
+                },
+                {
+                  "key": "client_id",
+                  "value": "{{client_id}}"
+                },
+                {
+                  "key": "client_secret",
+                  "value": "{{client_secret}}"
+                },
+                {
+                  "key": "scope",
+                  "value": "{{scope}}"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Order Management",
+      "event": [],
+      "item": [
+        {
+          "name": "Receive Order",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "exec": [
+                  "pm.request.headers.upsert({ key: 'Authorization', value: 'Bearer ' + pm.environment.get('access_token') });",
+                  "pm.request.headers.upsert({ key: 'X-Correlation-ID', value: crypto.randomUUID() });"
+                ],
+                "type": "text/javascript"
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('201 Created', function () { pm.response.to.have.status(201); });",
+                  "pm.test('Returns FHIR ServiceRequest', function () {",
+                  "  var json = pm.response.json();",
+                  "  pm.expect(json.resourceType).to.eql('ServiceRequest');",
+                  "  pm.expect(json).to.have.property('id');",
+                  "  pm.expect(json).to.have.property('status');",
+                  "  pm.expect(json).to.have.property('contained');",
+                  "  pm.environment.set('order_uid', json.id);",
+                  "});",
+                  "pm.test('Patient has minimum 2 telecom entries', function () {",
+                  "  var json = pm.response.json();",
+                  "  var patient = json.contained.find(r => r.resourceType === 'Patient');",
+                  "  pm.expect(patient).to.exist;",
+                  "  pm.expect(patient.telecom).to.be.an('array');",
+                  "  pm.expect(patient.telecom.length).to.be.at.least(2);",
+                  "});",
+                  "pm.test('Patient has both phone and email', function () {",
+                  "  var json = pm.response.json();",
+                  "  var patient = json.contained.find(r => r.resourceType === 'Patient');",
+                  "  var systems = patient.telecom.map(t => t.system);",
+                  "  pm.expect(systems).to.include('phone');",
+                  "  pm.expect(systems).to.include('email');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/fhir+json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"resourceType\": \"ServiceRequest\",\n  \"status\": \"active\",\n  \"intent\": \"order\",\n  \"code\": {\n    \"coding\": [\n      {\n        \"system\": \"http://snomed.info/sct\",\n        \"code\": \"31676001\",\n        \"display\": \"HIV antigen test\"\n      }\n    ],\n    \"text\": \"HIV antigen test\"\n  },\n  \"contained\": [\n    {\n      \"resourceType\": \"Patient\",\n      \"id\": \"patient-1\",\n      \"name\": [\n        {\n          \"use\": \"official\",\n          \"family\": \"Doe\",\n          \"given\": [\"Alex\"],\n          \"text\": \"Alex Doe\"\n        }\n      ],\n      \"telecom\": [\n        {\n          \"system\": \"phone\",\n          \"value\": \"+447700900000\",\n          \"use\": \"mobile\"\n        },\n        {\n          \"system\": \"email\",\n          \"value\": \"alex.doe@example.com\",\n          \"use\": \"home\"\n        }\n      ],\n      \"address\": [\n        {\n          \"use\": \"home\",\n          \"type\": \"both\",\n          \"line\": [\"123 Main Street\", \"Flat 4B\"],\n          \"city\": \"London\",\n          \"postalCode\": \"SW1A 1AA\",\n          \"country\": \"United Kingdom\"\n        }\n      ],\n      \"birthDate\": \"1990-01-01\"\n    }\n  ],\n  \"subject\": {\n    \"reference\": \"#patient-1\"\n  },\n  \"requester\": {\n    \"reference\": \"Organization/ORG001\"\n  },\n  \"performer\": [\n    {\n      \"reference\": \"Organization/SUP001\"\n    }\n  ]\n}"
+            },
+            "url": {
+              "raw": "{{supplier_base_url}}/order",
+              "host": [
+                "{{supplier_base_url}}"
+              ],
+              "path": [
+                "order"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Results",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "exec": [
+                  "pm.request.headers.upsert({ key: 'Authorization', value: 'Bearer ' + pm.environment.get('access_token') });",
+                  "pm.request.headers.upsert({ key: 'X-Correlation-ID', value: crypto.randomUUID() });"
+                ],
+                "type": "text/javascript"
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('200 or 404', function () { pm.expect([200,404]).to.include(pm.response.code); });"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{supplier_base_url}}/results?order_uid={{order_uid}}",
+              "host": [
+                "{{supplier_base_url}}"
+              ],
+              "path": [
+                "results"
+              ],
+              "query": [
+                {
+                  "key": "order_uid",
+                  "value": "{{order_uid}}"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Validation Tests - Telecom Cardinality",
+      "event": [],
+      "item": [
+        {
+          "name": "[NEGATIVE] Missing telecom array",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "exec": [
+                  "pm.request.headers.upsert({ key: 'Authorization', value: 'Bearer ' + pm.environment.get('access_token') });",
+                  "pm.request.headers.upsert({ key: 'X-Correlation-ID', value: crypto.randomUUID() });"
+                ],
+                "type": "text/javascript"
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('400 Bad Request - missing telecom', function () { pm.response.to.have.status(400); });",
+                  "pm.test('Returns OperationOutcome', function () {",
+                  "  var json = pm.response.json();",
+                  "  pm.expect(json.resourceType).to.eql('OperationOutcome');",
+                  "  pm.expect(json.issue).to.be.an('array');",
+                  "  pm.expect(json.issue.length).to.be.at.least(1);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/fhir+json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"resourceType\": \"ServiceRequest\",\n  \"status\": \"active\",\n  \"intent\": \"order\",\n  \"code\": {\n    \"coding\": [\n      {\n        \"system\": \"http://snomed.info/sct\",\n        \"code\": \"31676001\",\n        \"display\": \"HIV antigen test\"\n      }\n    ],\n    \"text\": \"HIV antigen test\"\n  },\n  \"contained\": [\n    {\n      \"resourceType\": \"Patient\",\n      \"id\": \"patient-1\",\n      \"name\": [\n        {\n          \"use\": \"official\",\n          \"family\": \"Doe\",\n          \"given\": [\"Alex\"],\n          \"text\": \"Alex Doe\"\n        }\n      ],\n      \"address\": [\n        {\n          \"use\": \"home\",\n          \"type\": \"both\",\n          \"line\": [\"123 Main Street\", \"Flat 4B\"],\n          \"city\": \"London\",\n          \"postalCode\": \"SW1A 1AA\",\n          \"country\": \"United Kingdom\"\n        }\n      ],\n      \"birthDate\": \"1990-01-01\"\n    }\n  ],\n  \"subject\": {\n    \"reference\": \"#patient-1\"\n  },\n  \"requester\": {\n    \"reference\": \"Organization/ORG001\"\n  },\n  \"performer\": [\n    {\n      \"reference\": \"Organization/SUP001\"\n    }\n  ]\n}"
+            },
+            "url": {
+              "raw": "{{supplier_base_url}}/order",
+              "host": [
+                "{{supplier_base_url}}"
+              ],
+              "path": [
+                "order"
+              ]
+            }
+          }
+        },
+        {
+          "name": "[NEGATIVE] Only phone provided",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "exec": [
+                  "pm.request.headers.upsert({ key: 'Authorization', value: 'Bearer ' + pm.environment.get('access_token') });",
+                  "pm.request.headers.upsert({ key: 'X-Correlation-ID', value: crypto.randomUUID() });"
+                ],
+                "type": "text/javascript"
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('400 Bad Request - insufficient telecom entries', function () { pm.response.to.have.status(400); });",
+                  "pm.test('Returns OperationOutcome', function () {",
+                  "  var json = pm.response.json();",
+                  "  pm.expect(json.resourceType).to.eql('OperationOutcome');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/fhir+json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"resourceType\": \"ServiceRequest\",\n  \"status\": \"active\",\n  \"intent\": \"order\",\n  \"code\": {\n    \"coding\": [\n      {\n        \"system\": \"http://snomed.info/sct\",\n        \"code\": \"31676001\",\n        \"display\": \"HIV antigen test\"\n      }\n    ],\n    \"text\": \"HIV antigen test\"\n  },\n  \"contained\": [\n    {\n      \"resourceType\": \"Patient\",\n      \"id\": \"patient-1\",\n      \"name\": [\n        {\n          \"use\": \"official\",\n          \"family\": \"Doe\",\n          \"given\": [\"Alex\"],\n          \"text\": \"Alex Doe\"\n        }\n      ],\n      \"telecom\": [\n        {\n          \"system\": \"phone\",\n          \"value\": \"+447700900000\",\n          \"use\": \"mobile\"\n        }\n      ],\n      \"address\": [\n        {\n          \"use\": \"home\",\n          \"type\": \"both\",\n          \"line\": [\"123 Main Street\", \"Flat 4B\"],\n          \"city\": \"London\",\n          \"postalCode\": \"SW1A 1AA\",\n          \"country\": \"United Kingdom\"\n        }\n      ],\n      \"birthDate\": \"1990-01-01\"\n    }\n  ],\n  \"subject\": {\n    \"reference\": \"#patient-1\"\n  },\n  \"requester\": {\n    \"reference\": \"Organization/ORG001\"\n  },\n  \"performer\": [\n    {\n      \"reference\": \"Organization/SUP001\"\n    }\n  ]\n}"
+            },
+            "url": {
+              "raw": "{{supplier_base_url}}/order",
+              "host": [
+                "{{supplier_base_url}}"
+              ],
+              "path": [
+                "order"
+              ]
+            }
+          }
+        },
+        {
+          "name": "[NEGATIVE] Only email provided",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "exec": [
+                  "pm.request.headers.upsert({ key: 'Authorization', value: 'Bearer ' + pm.environment.get('access_token') });",
+                  "pm.request.headers.upsert({ key: 'X-Correlation-ID', value: crypto.randomUUID() });"
+                ],
+                "type": "text/javascript"
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('400 Bad Request - insufficient telecom entries', function () { pm.response.to.have.status(400); });",
+                  "pm.test('Returns OperationOutcome', function () {",
+                  "  var json = pm.response.json();",
+                  "  pm.expect(json.resourceType).to.eql('OperationOutcome');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/fhir+json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"resourceType\": \"ServiceRequest\",\n  \"status\": \"active\",\n  \"intent\": \"order\",\n  \"code\": {\n    \"coding\": [\n      {\n        \"system\": \"http://snomed.info/sct\",\n        \"code\": \"31676001\",\n        \"display\": \"HIV antigen test\"\n      }\n    ],\n    \"text\": \"HIV antigen test\"\n  },\n  \"contained\": [\n    {\n      \"resourceType\": \"Patient\",\n      \"id\": \"patient-1\",\n      \"name\": [\n        {\n          \"use\": \"official\",\n          \"family\": \"Doe\",\n          \"given\": [\"Alex\"],\n          \"text\": \"Alex Doe\"\n        }\n      ],\n      \"telecom\": [\n        {\n          \"system\": \"email\",\n          \"value\": \"alex.doe@example.com\",\n          \"use\": \"home\"\n        }\n      ],\n      \"address\": [\n        {\n          \"use\": \"home\",\n          \"type\": \"both\",\n          \"line\": [\"123 Main Street\", \"Flat 4B\"],\n          \"city\": \"London\",\n          \"postalCode\": \"SW1A 1AA\",\n          \"country\": \"United Kingdom\"\n        }\n      ],\n      \"birthDate\": \"1990-01-01\"\n    }\n  ],\n  \"subject\": {\n    \"reference\": \"#patient-1\"\n  },\n  \"requester\": {\n    \"reference\": \"Organization/ORG001\"\n  },\n  \"performer\": [\n    {\n      \"reference\": \"Organization/SUP001\"\n    }\n  ]\n}"
+            },
+            "url": {
+              "raw": "{{supplier_base_url}}/order",
+              "host": [
+                "{{supplier_base_url}}"
+              ],
+              "path": [
+                "order"
+              ]
+            }
+          }
+        },
+        {
+          "name": "[NEGATIVE] Two phones, no email",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "exec": [
+                  "pm.request.headers.upsert({ key: 'Authorization', value: 'Bearer ' + pm.environment.get('access_token') });",
+                  "pm.request.headers.upsert({ key: 'X-Correlation-ID', value: crypto.randomUUID() });"
+                ],
+                "type": "text/javascript"
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('400 Bad Request - missing email system', function () { pm.response.to.have.status(400); });",
+                  "pm.test('Returns OperationOutcome with issue about missing email', function () {",
+                  "  var json = pm.response.json();",
+                  "  pm.expect(json.resourceType).to.eql('OperationOutcome');",
+                  "  var issueText = JSON.stringify(json.issue).toLowerCase();",
+                  "  pm.expect(issueText).to.include('email');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/fhir+json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"resourceType\": \"ServiceRequest\",\n  \"status\": \"active\",\n  \"intent\": \"order\",\n  \"code\": {\n    \"coding\": [\n      {\n        \"system\": \"http://snomed.info/sct\",\n        \"code\": \"31676001\",\n        \"display\": \"HIV antigen test\"\n      }\n    ],\n    \"text\": \"HIV antigen test\"\n  },\n  \"contained\": [\n    {\n      \"resourceType\": \"Patient\",\n      \"id\": \"patient-1\",\n      \"name\": [\n        {\n          \"use\": \"official\",\n          \"family\": \"Doe\",\n          \"given\": [\"Alex\"],\n          \"text\": \"Alex Doe\"\n        }\n      ],\n      \"telecom\": [\n        {\n          \"system\": \"phone\",\n          \"value\": \"+447700900000\",\n          \"use\": \"mobile\"\n        },\n        {\n          \"system\": \"phone\",\n          \"value\": \"+447700900111\",\n          \"use\": \"home\"\n        }\n      ],\n      \"address\": [\n        {\n          \"use\": \"home\",\n          \"type\": \"both\",\n          \"line\": [\"123 Main Street\", \"Flat 4B\"],\n          \"city\": \"London\",\n          \"postalCode\": \"SW1A 1AA\",\n          \"country\": \"United Kingdom\"\n        }\n      ],\n      \"birthDate\": \"1990-01-01\"\n    }\n  ],\n  \"subject\": {\n    \"reference\": \"#patient-1\"\n  },\n  \"requester\": {\n    \"reference\": \"Organization/ORG001\"\n  },\n  \"performer\": [\n    {\n      \"reference\": \"Organization/SUP001\"\n    }\n  ]\n}"
+            },
+            "url": {
+              "raw": "{{supplier_base_url}}/order",
+              "host": [
+                "{{supplier_base_url}}"
+              ],
+              "path": [
+                "order"
+              ]
+            }
+          }
+        },
+        {
+          "name": "[POSITIVE] Three telecoms (phone, email, fax)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "exec": [
+                  "pm.request.headers.upsert({ key: 'Authorization', value: 'Bearer ' + pm.environment.get('access_token') });",
+                  "pm.request.headers.upsert({ key: 'X-Correlation-ID', value: crypto.randomUUID() });"
+                ],
+                "type": "text/javascript"
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('201 Created - accepts more than 2 telecoms', function () { pm.response.to.have.status(201); });",
+                  "pm.test('Returns valid ServiceRequest', function () {",
+                  "  var json = pm.response.json();",
+                  "  pm.expect(json.resourceType).to.eql('ServiceRequest');",
+                  "  var patient = json.contained.find(r => r.resourceType === 'Patient');",
+                  "  pm.expect(patient.telecom.length).to.be.at.least(2);",
+                  "  var systems = patient.telecom.map(t => t.system);",
+                  "  pm.expect(systems).to.include('phone');",
+                  "  pm.expect(systems).to.include('email');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/fhir+json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"resourceType\": \"ServiceRequest\",\n  \"status\": \"active\",\n  \"intent\": \"order\",\n  \"code\": {\n    \"coding\": [\n      {\n        \"system\": \"http://snomed.info/sct\",\n        \"code\": \"31676001\",\n        \"display\": \"HIV antigen test\"\n      }\n    ],\n    \"text\": \"HIV antigen test\"\n  },\n  \"contained\": [\n    {\n      \"resourceType\": \"Patient\",\n      \"id\": \"patient-1\",\n      \"name\": [\n        {\n          \"use\": \"official\",\n          \"family\": \"Doe\",\n          \"given\": [\"Alex\"],\n          \"text\": \"Alex Doe\"\n        }\n      ],\n      \"telecom\": [\n        {\n          \"system\": \"phone\",\n          \"value\": \"+447700900000\",\n          \"use\": \"mobile\"\n        },\n        {\n          \"system\": \"email\",\n          \"value\": \"alex.doe@example.com\",\n          \"use\": \"home\"\n        },\n        {\n          \"system\": \"fax\",\n          \"value\": \"+447700900111\",\n          \"use\": \"work\"\n        }\n      ],\n      \"address\": [\n        {\n          \"use\": \"home\",\n          \"type\": \"both\",\n          \"line\": [\"123 Main Street\", \"Flat 4B\"],\n          \"city\": \"London\",\n          \"postalCode\": \"SW1A 1AA\",\n          \"country\": \"United Kingdom\"\n        }\n      ],\n      \"birthDate\": \"1990-01-01\"\n    }\n  ],\n  \"subject\": {\n    \"reference\": \"#patient-1\"\n  },\n  \"requester\": {\n    \"reference\": \"Organization/ORG001\"\n  },\n  \"performer\": [\n    {\n      \"reference\": \"Organization/SUP001\"\n    }\n  ]\n}"
+            },
+            "url": {
+              "raw": "{{supplier_base_url}}/order",
+              "host": [
+                "{{supplier_base_url}}"
+              ],
+              "path": [
+                "order"
+              ]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

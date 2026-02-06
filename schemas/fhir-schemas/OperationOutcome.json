@@ -1,0 +1,22 @@
+{
+  "resourceType": "OperationOutcome",
+  "id": "operation-outcome-001",
+  "issue": [
+    {
+      "severity": "error",
+      "code": "business-rule",
+      "details": {
+        "coding": [
+          {
+            "system": "http://hometest.nhs.uk/fhir/CodeSystem/error-codes",
+            "code": "test-not-available",
+            "display": "Test not available"
+          }
+        ],
+        "text": "Test not available"
+      },
+      "diagnostics": "The requested test is not available from this supplier",
+      "expression": ["ServiceRequest.code"]
+    }
+  ]
+}

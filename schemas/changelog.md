@@ -152,5 +152,36 @@ Changes to both supplier-api-spec.yaml and home-test-supplier-api.yaml:
        - Critical for FHIR Bundle validation where fullUrl must reference the correct resource
 
 
+---
 
+**Version 1.0.4 - January 27, 2026 - Business-Critical Required Fields (FHIR Profiling)**
 
+Changes to both supplier-api-spec.yaml and home-test-supplier-api.yaml:
+Added Required Fields for Business Operations (FHIR Constrained Profile)
+
+1. FHIRServiceRequest Required Fields Added (supplier-api-spec.yaml only)
+   - Made `contained` required (minItems: 1) - Patient demographics are mandatory for order fulfillment
+   - Made contained Patient properties required:
+     - `resourceType` - Required for FHIR resource type identification
+     - `id` - Required for contained resource reference (#patient-1)
+     - `name` - Required (patient identification for order processing)
+     - `telecom` - Required (contact information for delivery and follow-up)
+     - `address` - Required (shipping address for test kit delivery)
+
+2. FHIRObservation Required Fields Added (both APIs)
+   - Made `basedOn` required - Links Observation to originating ServiceRequest (critical for order tracking)
+   - Made `valueCodeableConcept` required - The actual test result must be present (core purpose of Observation)
+
+3. FHIRTask Required Fields Added (home-test-supplier-api.yaml only)
+   - Made `identifier` required - Essential for tracking order status across systems
+
+4. FHIR Datatype Required Fields Added (supplier-api-spec.yaml only)
+   - FHIRHumanName: Made `family` required - Last name is mandatory for patient identification
+   - FHIRContactPoint: Made `value` required - Contact method is useless without actual contact value
+   - FHIRAddress: Made `line` and `postalCode` required - Minimum address information for UK deliveries
+
+5. Patient Telecom Cardinality Constraint Added (supplier-api-spec.yaml only)
+   - Made Patient.telecom `minItems: 2` - Requires at least 2 contact points
+   - Updated description to clarify both phone and email are required
+   - **Business Rationale**: Both phone (for delivery contact) and email are essential for order fulfillment and customer communication
+   - **Implementation Note**: Application validation should verify one telecom has `system: 'phone'` and one has `system: 'email'`

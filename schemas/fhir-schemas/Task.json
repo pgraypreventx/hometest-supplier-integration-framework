@@ -1,0 +1,35 @@
+{
+  "resourceType": "Task",
+  "id": "task-550e8400-e29b-41d4-a716-446655440000",
+  "identifier": [
+    {
+      "system": "https://fhir.hometest.nhs.uk/Id/order-uid",
+      "value": "550e8400-e29b-41d4-a716-446655440000",
+      "use": "official"
+    }
+  ],
+  "basedOn": [
+    {
+      "reference": "ServiceRequest/550e8400-e29b-41d4-a716-446655440000"
+    }
+  ],
+  "status": "in-progress",
+  "intent": "order",
+  "statusReason": {
+    "text": "Sample collected and being processed"
+  },
+  "businessStatus": {
+    "text": "dispatched"
+  },
+  "for": {
+    "reference": "Patient/123e4567-e89b-12d3-a456-426614174000"
+  },
+  "authoredOn": "2025-11-04T10:30:00Z",
+  "lastModified": "2025-11-04T10:35:00Z",
+  "requester": {
+    "reference": "Organization/ORG001"
+  },
+  "owner": {
+    "reference": "Organization/SUP001"
+  }
+}

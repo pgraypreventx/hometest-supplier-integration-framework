@@ -1,0 +1,27 @@
+{
+  "resourceType": "ServiceRequest",
+  "intent": "order",
+  "code": {
+    "coding": [
+      {
+        "system": "http://snomed.info/sct",
+        "code": "31676001",
+        "display": "HIV antibody test - self-sampling"
+      }
+    ]
+  },
+  "subject": {
+    "reference": "Patient/123e4567-e89b-12d3-a456-426614174000",
+    "firstName": "Alex",
+    "lastName": "Doe",
+    "phone": "+447700900000"
+  },
+  "requester": {
+    "reference": "Organization/ORG001"
+  },
+  "performer": [
+    {
+      "reference": "Organization/SUP001"
+    }
+  ]
+}
