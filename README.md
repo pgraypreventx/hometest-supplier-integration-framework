@@ -5,7 +5,7 @@ A lightweight framework for defining and validating supplier integration contrac
 ## What’s in this repository
 
 - **`schemas/`** — Version-controlled schema definitions that describe the integration contract(s).
-- **`CHANGELOG.md`** — Human-readable record of notable changes between releases.
+- **`schemas/CHANGELOG.md`** — Human-readable record of notable changes between releases.
 
 ## Typical use cases
 
@@ -32,8 +32,8 @@ cd hometest-supplier-integration-framework
 ### Recommended workflow for changing contracts
 
 1. **Create a branch** describing the change.
-2. **Update schemas** in `schemas/`.
-3. **Update `CHANGELOG.md`** with:
+2. **Update schemas** in [`schemas/`](./schemas/).
+3. **Update [`CHANGELOG.md`](./schemas/changelog.md)** with:
     - what changed,
     - why it changed,
     - impact (breaking/non-breaking),
@@ -51,7 +51,7 @@ Contributions are welcome via pull requests.
 - Use the existing **issue templates** for bug reports/requests.
 - Follow the **PR template** to ensure changes are auditable and easy to review.
 - Keep changes focused: one contract change per PR where practical.
-- Ensure documentation (especially `CHANGELOG.md`) is updated alongside schema changes.
+- Ensure documentation (especially `schemas/changelog.md`) is updated alongside schema changes.
 
 ## Licence
 
